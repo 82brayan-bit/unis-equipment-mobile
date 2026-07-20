@@ -1,98 +1,148 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { Link, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { Screen } from '@/components/Screen';
+import { Card, ErrorState, Loading, StatCard } from '@/components/ui';
+import { hub } from '@/lib/api';
+import { getSession, type Session } from '@/lib/config';
+import { MODULES } from '@/lib/modules';
+import { Brand } from '@/lib/theme';
+import { useAsync } from '@/lib/useAsync';
+import { useTheme } from '@/lib/useTheme';
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+export default function Dashboard() {
+  const { c } = useTheme();
+  const router = useRouter();
+  const [session, setSession] = useState<Session | null>(null);
+  const { data, loading, error, reload } = useAsync(() => hub.dashboard(), []);
+
+  useEffect(() => {
+    getSession().then(setSession);
+  }, []);
+
+  const s = data?.summary;
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+    <Screen refreshing={loading} onRefresh={reload}>
+      <View style={styles.headerRow}>
+        <View style={{ flexShrink: 1 }}>
+          <Text style={{ color: c.text, fontSize: 22, fontWeight: '800' }}>
+            Performance & Maintenance Hub
+          </Text>
+          <Text style={{ color: c.textMuted, marginTop: 2 }}>
+            Facility {session?.facilityId ?? '—'} · {session?.roles ?? ''}
+          </Text>
+        </View>
+        <TouchableOpacity
+          onPress={() => router.push('/settings')}
+          style={[styles.iconBtn, { borderColor: c.border }]}>
+          <Ionicons name="settings-outline" size={20} color={c.text} />
+        </TouchableOpacity>
+      </View>
 
-export default function HomeScreen() {
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+      {loading && !s ? (
+        <Loading label="Loading fleet summary…" />
+      ) : error ? (
+        <ErrorState message={error} onRetry={reload} />
+      ) : s ? (
+        <View style={styles.statGrid}>
+          <StatCard label="Total Equipment" value={s.total_equipment} icon="car-outline" />
+          <StatCard label="Available" value={s.available} icon="checkmark-circle-outline" tint={Brand.mint} />
+          <StatCard label="Under Repair" value={s.under_repair} icon="construct-outline" tint={Brand.red} />
+          <StatCard label="Maint. Required" value={s.maintenance_required} icon="alert-circle-outline" tint={Brand.amber} />
+          <StatCard label="Open Work Orders" value={s.open_work_orders} icon="clipboard-outline" />
+          <StatCard label="Overdue Plans" value={s.overdue_plans} icon="time-outline" tint={Brand.amber} />
+          <StatCard label="Inspections (mo.)" value={s.inspections_this_month} icon="checkbox-outline" tint={Brand.mint} />
+          <StatCard label="Costs (mo.)" value={`$${Number(s.total_costs_this_month ?? 0).toLocaleString()}`} icon="cash-outline" />
+        </View>
+      ) : null}
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
+      <Text style={{ color: c.text, fontSize: 18, fontWeight: '700', marginTop: 8 }}>
+        Modules
+      </Text>
 
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+      <View style={styles.moduleGrid}>
+        {MODULES.filter((m) => m.slug !== 'dashboard').map((m) => (
+          <Link key={m.slug} href={m.route as any} asChild>
+            <TouchableOpacity style={{ width: '48%' }} activeOpacity={0.75}>
+              <Card style={{ gap: 10, opacity: m.live ? 1 : 0.72 }}>
+                <View style={styles.moduleIconRow}>
+                  <View
+                    style={[
+                      styles.moduleIcon,
+                      { backgroundColor: (m.live ? Brand.green : c.textMuted) + '22' },
+                    ]}>
+                    <Ionicons name={m.icon} size={22} color={m.live ? c.accent : c.textMuted} />
+                  </View>
+                  {!m.live ? (
+                    <View style={[styles.soon, { borderColor: c.border }]}>
+                      <Text style={{ color: c.textMuted, fontSize: 10, fontWeight: '600' }}>
+                        SOON
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+                <View>
+                  <Text style={{ color: c.text, fontSize: 15, fontWeight: '700' }}>
+                    {m.title}
+                  </Text>
+                  <Text style={{ color: c.textMuted, fontSize: 12, marginTop: 2 }}>
+                    {m.subtitle}
+                  </Text>
+                </View>
+              </Card>
+            </TouchableOpacity>
+          </Link>
+        ))}
+      </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
+  headerRow: {
     flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
     alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
+    justifyContent: 'space-between',
+    gap: 12,
   },
-  heroSection: {
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
   },
-  title: {
-    textAlign: 'center',
+  statGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
   },
-  code: {
-    textTransform: 'uppercase',
+  moduleGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
   },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  moduleIconRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  moduleIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  soon: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
 });
