@@ -13,10 +13,20 @@ expo-env.d.ts
 .kotlin/
 *.orig.*
 *.jks
+*.keystore
 *.p8
 *.p12
 *.key
 *.mobileprovision
+*.pem
+
+# Android / EAS credentials and signing material
+credentials.json
+credentials.*.json
+*.keystore.properties
+android/key.properties
+android/app/*.jks
+android/app/*.keystore
 
 # Metro
 .metro-health-check*
@@ -28,10 +38,11 @@ yarn-error.*
 
 # macOS
 .DS_Store
-*.pem
 
-# local env files
-.env*.local
+# local env files / secrets
+.env
+.env.*
+!.env.example
 
 # typescript
 *.tsbuildinfo
