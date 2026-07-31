@@ -1,59 +1,29 @@
-name: EAS Android Build
+name: Build Android APK
 
 on:
   workflow_dispatch:
-    inputs:
-      profile:
-        description: EAS build profile
-        required: true
-        default: preview
-        type: choice
-        options:
-          - preview
-          - production
-
-permissions:
-  contents: read
+  push:
+    branches:
+      - main
 
 jobs:
   build-android:
-    name: Build Android (${{ inputs.profile }})
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Align Expo SDK 57 compatible dependency patch versions
-        run: |
-          npx expo install \
-            @expo/ui@~57.0.8 \
-            expo@~57.0.9 \
-            expo-constants@~57.0.8 \
-            expo-image-picker@~57.0.7 \
-            expo-linking@~57.0.4 \
-            expo-router@~57.0.9 \
-            expo-splash-screen@~57.0.5 \
-            expo-system-ui@~57.0.2 \
-            expo-web-browser@~57.0.2 \
-            react-native@0.86.2 \
-            react-native-reanimated@4.5.1 \
-            react-native-screens@~4.26.0 \
-            react-native-worklets@0.10.1
-
-      - name: Run Expo Doctor
-        run: npx expo-doctor
-
-      - name: Set up EAS CLI
+      - name: Setup Expo and EAS
         uses: expo/expo-github-action@v8
         with:
           eas-version: latest
@@ -61,15 +31,9 @@ jobs:
 
       - name: Confirm Expo authentication
         run: eas whoami
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Configure EAS Android project
-        run: eas build:configure --platform android --non-interactive
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      - name: Confirm EAS project
+        run: eas project:info
 
-      - name: Build Android with EAS
-        run: EAS_NO_VCS=1 eas build --platform android --profile ${{ inputs.profile }} --non-interactive --wait
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      - name: Build Android APK
+        run: eas build --platform android --profile preview --non-interactive --no-wait
